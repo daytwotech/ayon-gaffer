@@ -4,11 +4,11 @@ import pathlib
 
 import Gaffer
 
-from ayon_core.lib import EnumDef, NumberDef, StringTemplate
-from ayon_core.pipeline import CreatedInstance, get_current_context
+from ayon_core.lib import EnumDef, StringTemplate
+from ayon_core.pipeline import get_current_context
 from ayon_core.settings import get_project_settings
 
-from ayon_gaffer.api import plugin
+from ayon_gaffer.api import gaffercomp, plugin
 from ayon_gaffer.api.lib import get_work_default_directory
 from ayon_gaffer.api.nodes.lib import BoxNodeManagerInstance
 
@@ -58,15 +58,29 @@ class CreateGafferRender2D(plugin.GafferCreatorBase):
         instance=None,
     ) -> Gaffer.Node:
 
-        node = BoxNodeManagerInstance.create(script, "Render2D", "1")
-        script.addChild(node)
-
-        if pre_create_data.get("use_selection", False) and len(self.selected_nodes) >= 1:
-            node["in"].setInput(self.selected_nodes[0]["out"])
-
         frame_start, frame_end, handle_start, handle_end = self._get_frame_range()
-        node["startFrame"].setValue(frame_start - handle_start)
-        node["endFrame"].setValue(frame_end + handle_end)
+        first = frame_start - handle_start
+        last = frame_end + handle_end
+
+        if gaffercomp.is_available():
+            node = gaffercomp.create_write()
+            script.addChild(node)
+
+            if pre_create_data.get("use_selection", False) and len(self.selected_nodes) >= 1:
+                node["in"].setInput(self.selected_nodes[0]["out"])
+
+            node["limitToRange"].setValue(True)
+            node["first"].setValue(first)
+            node["last"].setValue(last)
+        else:
+            node = BoxNodeManagerInstance.create(script, "Render2D", "1")
+            script.addChild(node)
+
+            if pre_create_data.get("use_selection", False) and len(self.selected_nodes) >= 1:
+                node["in"].setInput(self.selected_nodes[0]["out"])
+
+            node["startFrame"].setValue(first)
+            node["endFrame"].setValue(last)
 
         path = self._update_write_node_filepath(instance, script)
         node["fileName"].setValue(path)

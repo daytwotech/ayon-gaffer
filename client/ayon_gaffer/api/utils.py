@@ -1,7 +1,6 @@
 import os
 import re
 
-import pyseq
 import IECore
 
 from ayon_core.lib import Logger
@@ -9,6 +8,17 @@ log = Logger.get_logger("ayon_gaffer.api.utils")
 
 
 def get_pyseq_sequence(in_path, frame_start=None, frame_end=None):
+    # pyseq is only required by legacy sequence helpers. Import it lazily so
+    # GafferComp/AYON can initialise without pyseq installed in Gaffer's
+    # embedded Python environment.
+    try:
+        import pyseq
+    except ImportError as exc:
+        raise RuntimeError(
+            "pyseq is required for this legacy sequence helper but is not "
+            "available in Gaffer's Python environment."
+        ) from exc
+
     '''
     Takes a path and tries to get it's corresponding pyseq Sequence object.
 

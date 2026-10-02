@@ -1,6 +1,9 @@
 import GafferSceneUI
 import IECore
-import GafferArnold
+try:
+    import GafferArnold
+except ImportError:
+    GafferArnold = None
 import GafferScene
 import Gaffer
 import GafferOSL
@@ -88,4 +91,5 @@ class ShaderPlane(GafferScene.SceneNode):
 
 
 #GafferSceneUI.ShaderView.registerScene( "ai", "second", "/net-home/sveinbjorn/Desktop/plane.gfr" )
-GafferSceneUI.ShaderView.registerScene( "ai", "Plane", ShaderPlane )
+if GafferArnold is not None:
+    GafferSceneUI.ShaderView.registerScene("ai", "Plane", ShaderPlane)
