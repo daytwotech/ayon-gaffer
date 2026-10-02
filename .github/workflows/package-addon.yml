@@ -1,0 +1,29 @@
+name: Package AYON addon
+
+on:
+  push:
+    branches:
+      - feature/gaffercomp-integration
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build AYON addon package
+        run: python create_package.py
+
+      - name: Upload AYON addon package
+        uses: actions/upload-artifact@v4
+        with:
+          name: gaffer-0.5.15-dev
+          path: package/gaffer-0.5.15-dev.zip
+          if-no-files-found: error
