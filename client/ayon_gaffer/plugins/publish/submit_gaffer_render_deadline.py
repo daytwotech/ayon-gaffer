@@ -28,6 +28,7 @@ import GafferScene
 
 import ayon_gaffer.api.lib
 import ayon_gaffer.api.pipeline
+from ayon_gaffer.api import gaffercomp
 
 log = Logger.get_logger("ayon_gaffer.plugins.publish.submit_gaffer_render_deadline")
 
@@ -161,12 +162,18 @@ class GafferSubmitDeadline(pyblish.api.InstancePlugin,
             self.set_outputs(node, instance)
             self.set_extra_info(node, instance)
 
-            saved_context_vars = self.set_render_context_vars(
-                node, render_shot_name)
+            # The legacy Render2D box carries an internal ContextVariables
+            # node. GafferComp::Write is already a direct TaskNode and needs
+            # no box-specific render:shot injection.
+            saved_context_vars = None
+            if not gaffercomp.is_write(node):
+                saved_context_vars = self.set_render_context_vars(
+                    node, render_shot_name)
 
             dispatcher.dispatch([node])
 
-            self.restore_render_context_vars(node, saved_context_vars)
+            if saved_context_vars is not None:
+                self.restore_render_context_vars(node, saved_context_vars)
 
             self.clear_dispatcher_env_vars(node)
             self.restore_submission_settings(node, saved_settings)
@@ -226,7 +233,7 @@ class GafferSubmitDeadline(pyblish.api.InstancePlugin,
     def populate_dispatcher_env_vars(self, root_node):
         self.log.info(f"Setting env vars for {root_node} ...")
 
-        for node in root_node.children(GafferDispatch.TaskNode):
+        for node in gaffercomp.task_nodes(root_node):
             try:
                 env_var_plug = node['dispatcher']['deadline']['environmentVariables']
             except KeyError:
@@ -251,7 +258,7 @@ class GafferSubmitDeadline(pyblish.api.InstancePlugin,
 
     def clear_dispatcher_env_vars(self, root_node):
         self.log.info(f"Clearing env vars for {root_node} ...")
-        for node in root_node.children(GafferDispatch.TaskNode):
+        for node in gaffercomp.task_nodes(root_node):
             try:
                 deadline_env_plug = node['dispatcher']['deadline']['environmentVariables']
             except KeyError:
@@ -325,13 +332,13 @@ class GafferSubmitDeadline(pyblish.api.InstancePlugin,
 
         if len(limits_to_add) > 0:
             self.log.info(f"Adding limits {limits_to_add}")
-            for node in root_node.children(GafferDispatch.TaskNode):
+            for node in gaffercomp.task_nodes(root_node):
                 limit_plug = node['dispatcher']['deadline']['limits']
                 ayon_gaffer.api.lib.append_to_csv_plug(
                     limit_plug, ",".join(limits_to_add))
 
     def clear_limits(self, root_node):
-        for node in root_node.children(GafferDispatch.TaskNode):
+        for node in gaffercomp.task_nodes(root_node):
             deadline_settings_plug = node['dispatcher']['deadline']
             self.log.debug(
                 f"Clearing dispatcher limits for [{node.getName()}]")
@@ -385,7 +392,7 @@ class GafferSubmitDeadline(pyblish.api.InstancePlugin,
             instance)
 
         saved_values = {}
-        for node in root_node.children(GafferDispatch.TaskNode):
+        for node in gaffercomp.task_nodes(root_node):
             self.log.info(f" ** {node.getName()} **")
             # check if we have task node type specific submission settings
             node_submission_settings = self.get_submission_settings(
@@ -418,7 +425,7 @@ class GafferSubmitDeadline(pyblish.api.InstancePlugin,
             f"[{root_node.getName()}]"
         )
 
-        for node in root_node.children(GafferDispatch.TaskNode):
+        for node in gaffercomp.task_nodes(root_node):
             log.info(f" !! {node.getName()} !!")
             deadline_settings = node['dispatcher']['deadline']
             current_settings = old_settings[node.getName()]
