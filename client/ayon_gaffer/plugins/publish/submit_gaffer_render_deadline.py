@@ -78,6 +78,9 @@ class GafferSubmitDeadline(pyblish.api.InstancePlugin,
         "AYON_USE_STAGING": "0",
         "AYON_BUNDLE_NAME": "",
         "DEADLINE_ENVIRONMENT_CACHE_DIR": "",
+        # Required for farm workers to deserialize GafferComp::Write.
+        "GAFFERCOMP_ROOT": "",
+        "GAFFER_EXTENSION_PATHS": "",
     }
 
     @classmethod
