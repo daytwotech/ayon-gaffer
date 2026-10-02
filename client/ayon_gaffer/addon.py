@@ -29,14 +29,25 @@ class GafferAddon(
         return [os.path.join(GAFFER_HOST_DIR, "plugins", "farm")]
 
     def add_implementation_envs(self, env, _app):
-        # Add requirements to GAFFER_EXTENSION_PATHS
+        # Add AYON requirements to GAFFER_EXTENSION_PATHS. If an AYON
+        # application variant supplies GAFFERCOMP_ROOT, prepend GafferComp as
+        # an extension as well. os.pathsep keeps this correct on Windows (;)
+        # and Linux (:).
+        extension_paths = []
+
+        gaffercomp_root = env.get("GAFFERCOMP_ROOT")
+        if gaffercomp_root:
+            extension_paths.append(gaffercomp_root)
+
         startup_path = os.path.join(GAFFER_HOST_DIR, "deploy")
         gaffer_deadline_path = os.path.join(startup_path, "GafferDeadline")
-        ext_path = startup_path + os.pathsep + gaffer_deadline_path
-        if env.get("GAFFER_EXTENSION_PATHS"):
-            ext_path += os.pathsep + env["GAFFER_EXTENSION_PATHS"]
+        extension_paths.extend((startup_path, gaffer_deadline_path))
 
-        env["GAFFER_EXTENSION_PATHS"] = ext_path
+        existing_paths = env.get("GAFFER_EXTENSION_PATHS")
+        if existing_paths:
+            extension_paths.append(existing_paths)
+
+        env["GAFFER_EXTENSION_PATHS"] = os.pathsep.join(extension_paths)
 
         gaffer_deadline_dep_path = os.path.join(
             gaffer_deadline_path, "gaffer_batch_dependency.py")
