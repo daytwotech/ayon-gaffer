@@ -1,3 +1,5 @@
+import os
+import re
 import json
 import imath
 import qargparse
