@@ -1,9 +1,7 @@
-from ayon_core.pipeline import (
-    get_representation_path,
-)
 import ayon_gaffer.api.lib
 import ayon_gaffer.api.utils
 import ayon_gaffer.api.plugin
+from ayon_gaffer.api import gaffercomp
 
 import GafferImage
 
@@ -21,12 +19,8 @@ class GafferLoadImageReader(ayon_gaffer.api.plugin.GafferImageLoaderBase):
     node_class = GafferImage.ImageReader
 
     def load(self, context, name, namespace, options):
-        # Create the Loader with the filename path set
-
         node = self.node_class()
 
-        # path = self.filepath_from_context(context)
-        # path = self._convert_path(path, options)
         path = self.prepare_image_path(context, options)
         node["fileName"].setValue(path)
 
@@ -35,6 +29,9 @@ class GafferLoadImageReader(ayon_gaffer.api.plugin.GafferImageLoaderBase):
             node["colorSpace"],
             context,
             path)
+
+        if gaffercomp.is_available():
+            gaffercomp.configure_reader(node)
 
     def update(self, container, context):
         representation = context["representation"]
@@ -50,3 +47,6 @@ class GafferLoadImageReader(ayon_gaffer.api.plugin.GafferImageLoaderBase):
             node["colorSpace"],
             context,
             path)
+
+        if gaffercomp.is_available():
+            gaffercomp.configure_reader(node)
