@@ -14,6 +14,10 @@ class GafferSetFrameRangeLoader(load.LoaderPlugin):
                      "yeticache",
                      "pointcache",
                      "render"]
+    # AYON Core 1.9+ matches this against productBaseType when present.
+    # These actions only alter the script frame range, so they are safe for
+    # any product base type represented by the legacy product_types above.
+    product_base_types = ["*"]
     representations = ["*"]
 
     label = "Set frame range"
@@ -54,6 +58,10 @@ class GafferSetFrameRangeWithHandlesLoader(load.LoaderPlugin):
                      "yeticache",
                      "pointcache",
                      "render"]
+    # AYON Core 1.9+ matches this against productBaseType when present.
+    # These actions only alter the script frame range, so they are safe for
+    # any product base type represented by the legacy product_types above.
+    product_base_types = ["*"]
     representations = ["*"]
 
     label = "Set frame range (with handles)"
