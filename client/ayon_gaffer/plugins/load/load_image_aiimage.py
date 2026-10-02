@@ -12,6 +12,7 @@ class GafferLoadImageAiImage(ayon_gaffer.api.plugin.GafferImageLoaderBase):
     """Load an AiImage"""
 
     product_types = ["image", "render"]
+    product_base_types = ["image"]
     representations = ["*"]
 
     label = "Load sequence (AiImage)"
