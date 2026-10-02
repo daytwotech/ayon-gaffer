@@ -625,15 +625,9 @@ class GafferImageLoaderBase(GafferLoaderBase, PlugSettingsMixin):
 
     @classmethod
     def apply_settings(cls, project_settings):
+        # ImageReader and other image loaders do not depend on Arnold.
+        # Arnold-specific availability checks belong to the AiImage loader.
         super(GafferImageLoaderBase, cls).apply_settings(project_settings)
-
-        try:
-            # check if we can import GafferArnold -> is Arnold loaded?
-            import GafferArnold  # noqa
-        except ModuleNotFoundError:
-            # if not we just disable this loader quietly
-            print("GafferArnold not available; disable GafferLoadImageAiImage")
-            cls.enabled = False
 
     def set_up_node(self, name, namespace, node, context):
         '''
@@ -712,24 +706,50 @@ class GafferImageLoaderBase(GafferLoaderBase, PlugSettingsMixin):
                     f"Encoutered a weird udim mode: [{udim_mode}]")
         self.log.info(f"use_udims: {self.use_udims}")
 
-        seq = ayon_gaffer.api.utils.get_pyseq_sequence(path)
-        if len(seq) > 1:
-            padding = seq._get_padding()
-            hash_padding = int(padding[1:-1])*"#"  # convert %04d to ####
-            if self.use_udims:
-                self.log.info("Sequence, replacing padding with '<UDIM>'")
-                out_path = "{}<UDIM>{}".format(
-                    seq.format(f"%D%h"), seq.format("%t"))
-            else:
-                self.log.info("Sequence, replacing padding with '#'")
-                out_path = seq.format(f"%D%h{hash_padding}%t")
+        # AYON representations generally resolve to one concrete frame.
+        # Detect neighbouring numbered files directly instead of depending on
+        # the third-party pyseq module, which is not bundled with Gaffer.
+        normalized_path = path.replace("\\", "/")
+        directory, filename = os.path.split(normalized_path)
+
+        match = re.match(
+            r"^(?P<head>.*[._])(?P<frame>\\d+)(?P<tail>\\.[A-Za-z0-9.]+)$",
+            filename,
+        )
+        if match is None or not os.path.isdir(directory):
+            return normalized_path
+
+        head = match.group("head")
+        frame_text = match.group("frame")
+        tail = match.group("tail")
+        padding = len(frame_text)
+
+        sibling_re = re.compile(
+            r"^{}(?P<frame>\\d{{{}}}){}$".format(
+                re.escape(head),
+                padding,
+                re.escape(tail),
+            )
+        )
+        siblings = [
+            item
+            for item in os.listdir(directory)
+            if sibling_re.match(item)
+        ]
+
+        # A lone numbered file is still a single file, matching GafferComp's
+        # Read behaviour.
+        if len(siblings) <= 1:
+            return normalized_path
+
+        if self.use_udims:
+            self.log.info("Sequence, replacing padding with '<UDIM>'")
+            sequence_name = "{}<UDIM>{}".format(head, tail)
         else:
-            # we take the path of the first item since if we simply do
-            # seq.path() the default behaviour of pyseq is to have the format
-            # (if there are frames) file.start-end.ext, which we don't want if
-            # there is a single file here.
-            out_path = seq[0].path
-        return out_path.replace("\\", "/")
+            self.log.info("Sequence, replacing padding with '#'")
+            sequence_name = "{}{}{}".format(head, "#" * padding, tail)
+
+        return os.path.join(directory, sequence_name).replace("\\", "/")
 
     def remove(self, container):
         node = container["_node"]
