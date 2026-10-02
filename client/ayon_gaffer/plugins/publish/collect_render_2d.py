@@ -1,9 +1,9 @@
-import pyblish.api
 import os
-import Gaffer
-import IECore
+
+import pyblish.api
 
 from ayon_core.lib import get_formatted_current_time
+from ayon_gaffer.api import gaffercomp
 from ayon_gaffer.api.colorspace import ARenderProduct
 from ayon_gaffer.api.lib import get_color_management_preferences
 
@@ -16,14 +16,21 @@ class CollectRender2D(pyblish.api.InstancePlugin):
     hosts = ["gaffer"]
     families = ["render"]
 
-
     def process(self, instance):
         context = instance.context
         render_node = instance.data.get("transientData", {}).get("node", None)
         if not render_node:
             raise RuntimeError("Unable to find the 2d render node")
-        if render_node.typeName() != "AyonGaffer::Render2D":
-            self.log.debug(f"Skip collecting node, not a Render2D node, type is {render_node.typeName()}")
+
+        is_gaffercomp_write = gaffercomp.is_write(render_node)
+        if (
+            render_node.typeName() != "AyonGaffer::Render2D"
+            and not is_gaffercomp_write
+        ):
+            self.log.debug(
+                "Skip collecting node, not a Render2D/GafferComp Write node, "
+                f"type is {render_node.typeName()}"
+            )
             return
         self.log.debug(f"Using node: {render_node.getName()}")
 
@@ -31,12 +38,19 @@ class CollectRender2D(pyblish.api.InstancePlugin):
 
         img_seq_filepath = render_node["fileName"].getValue()
         dirname = os.path.dirname(img_seq_filepath)
-        start_frame = render_node["startFrame"].getValue()
-        end_frame = render_node["endFrame"].getValue()
+        frames = gaffercomp.render_frames(render_node)
+        if not frames:
+            raise RuntimeError(
+                f"Render node {render_node.getName()} has an empty frame range"
+            )
+        start_frame = min(frames)
+        end_frame = max(frames)
 
-        file_paths = [img_seq_filepath.replace("####", f"{x:04d}") for x in range(start_frame, end_frame + 1)]
-        file_names = [os.path.basename(x) for x in file_paths]
-        frames = list(range(start_frame, end_frame + 1))
+        file_paths = [
+            gaffercomp.expand_frame_path(img_seq_filepath, frame)
+            for frame in frames
+        ]
+        file_names = [os.path.basename(path) for path in file_paths]
 
         colorspace_data = get_color_management_preferences(render_node.scriptNode())
         data = {
@@ -77,27 +91,27 @@ class CollectRender2D(pyblish.api.InstancePlugin):
 
         render_target = instance.data["creator_attributes"]["render_target"]
 
-        if render_target == "frames":  # use existing frames for local publish
+        if render_target == "frames":
             self.log.debug("Using existing frames for local publish")
             if "representations" not in data:
                 data["representations"] = []
             data["representations"].append({
-                'name': "exr",
-                'ext': "exr",
-                'files': file_names,
+                "name": "exr",
+                "ext": "exr",
+                "files": file_names,
                 "stagingDir": dirname,
             })
 
-        elif render_target == "frames_farm": # use existing frames for publish on farm
+        elif render_target == "frames_farm":
             self.log.debug("Using existing frames for farm publish")
 
             if "representations" not in data:
                 data["representations"] = []
 
             data["representations"].append({
-                'name': "exr",
-                'ext': "exr",
-                'files': file_names,
+                "name": "exr",
+                "ext": "exr",
+                "files": file_names,
                 "stagingDir": dirname,
             })
 
@@ -105,12 +119,12 @@ class CollectRender2D(pyblish.api.InstancePlugin):
             data["farm"] = True
             instance.data["families"].append("render.frames_farm")
 
-        elif render_target == "farm":  # render and publish on farm
+        elif render_target == "farm":
             self.log.debug("Using farm for render and publish")
             data["farm"] = True
             instance.data["families"].append("render.farm")
 
-        elif render_target == "local":  # render and publish locally
+        elif render_target == "local":
             self.log.debug("Using local for render and publish")
             instance.data["families"] = ["render.local"]
 
@@ -123,5 +137,6 @@ class CollectRender2D(pyblish.api.InstancePlugin):
             instance.data["publish_attributes"] = {}
         if "CollectJobInfo" not in instance.data["publish_attributes"].keys():
             instance.data["publish_attributes"]["CollectJobInfo"] = {}
-        instance.data["publish_attributes"]["CollectJobInfo"]['frames'] = ",".join([str(f) for f in frames])
-
+        instance.data["publish_attributes"]["CollectJobInfo"]["frames"] = ",".join(
+            [str(frame) for frame in frames]
+        )
