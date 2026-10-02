@@ -7,7 +7,6 @@ from datetime import datetime
 
 import requests
 import pyblish.api
-import pyseq
 
 
 from ayon_core.pipeline import AYONPyblishPluginMixin
@@ -215,7 +214,15 @@ class GafferSubmitDeadline(pyblish.api.InstancePlugin,
             return val
 
     def set_outputs(self, root_node, instance):
-        for node in root_node.children(GafferScene.Render):
+        render_nodes = list(root_node.children(GafferScene.Render))
+        if not render_nodes:
+            return
+
+        # pyseq is only needed by the legacy 3D Render box path. GafferComp
+        # Write nodes dispatch directly and do not need it.
+        import pyseq
+
+        for node in render_nodes:
             output_list = []
             for aov, filelist in instance.data["expectedFiles"][0].items():
                 seq = pyseq.Sequence(filelist)
